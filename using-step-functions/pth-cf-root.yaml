@@ -1,0 +1,82 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Parameters:
+  SpeechFile:
+    Type: String
+    Description: Polly audio file
+    Default: speech.mp3
+  SpeechmarksFile:
+    Type: String
+    Description: Polly speechmarks file
+    Default: speechmarks.txt
+  Suffix:
+    Type: String
+    Description: Unique suffix for s3 bucket
+  CodeBucket:
+    Type: String
+    Description: Code bucket
+  
+Resources:
+
+  SpeechBucket:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: pth-speech-bucket.yaml
+      Parameters:
+        Suffix: !Ref Suffix
+
+  LambdaPollyT2SFunction:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: pth-cf-polly-t2s-lambda.yaml
+      Parameters:
+        PollySpeechBucket: !GetAtt SpeechBucket.Outputs.S3Bucket
+        SpeechFile: !Ref SpeechFile
+
+  LambdaPollyT2SpeechmarksFunction:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: pth-cf-polly-t2speechmarks-lambda.yaml
+      Parameters:
+        PollySpeechBucket: !GetAtt SpeechBucket.Outputs.S3Bucket
+        SpeechmarksFile: !Ref SpeechmarksFile
+
+  StepFunction:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: pth-cf-stepfunction.yaml
+      Parameters:
+        BucketName: !Ref CodeBucket
+
+  PollyStepFunctionLambda:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: pth-cf-invoke-polly-stepfunction-lambda.yaml
+      Parameters:
+        StepFunctionArn: !GetAtt StepFunction.Outputs.StepFunctionArn
+        PollyT2SLambdaArn: !GetAtt LambdaPollyT2SFunction.Outputs.LambdaFunctionArn
+        PollyT2SpeechmarksLambdaArn: !GetAtt LambdaPollyT2SpeechmarksFunction.Outputs.LambdaFunctionArn
+
+  APIGateway:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: pth-cf-api.yaml
+      Parameters: 
+        LambdaInvokePollyStepFunctionArn: !GetAtt PollyStepFunctionLambda.Outputs.LambdaFunctionArn
+    DependsOn: PollyStepFunctionLambda 
+  
+  StaticWebsite:
+      Type: AWS::CloudFormation::Stack
+      Properties:
+        TemplateURL: pth-static-website.yaml
+        Parameters:
+          Suffix: !Ref Suffix
+
+  CloudFrontDistribution:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: pth-cf-cloudfront.yaml
+      Parameters:
+        MyBucket: !GetAtt StaticWebsite.Outputs.S3Bucket
+        MyDomainName: !GetAtt StaticWebsite.Outputs.DomainName
+    DependsOn: StaticWebsite
+

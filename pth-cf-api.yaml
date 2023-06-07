@@ -1,0 +1,92 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: API Gateway for invoking lambda-stepfunctions-polly
+
+Outputs:
+  ApiEndpoint:
+    Description: Endpoint for this stage of the api
+    Value: !Join
+      - ''
+      - - https://
+        - !Ref 'APIGateway'
+        - .execute-api.
+        - !Ref 'AWS::Region'
+        - .amazonaws.com/
+        - prod/presigned
+
+Parameters:
+  LambdaInvokePollyStepFunctionArn:
+    Description: Invoke stepfunction to invoke polly
+    Type: String
+
+Resources:
+  APIGateway:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Description: API Endpoint to receive text from user and return URL for speech and speechmarks files
+      Name: "pth-cf-polly-speechmarks-api"
+      Tags:
+        -
+          Key: "Project"
+          Value: "Polly Text Highlighter Blog"
+
+  APIGatewayRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - apigateway.amazonaws.com
+        Version: '2012-10-17'
+
+  GetPreSignedURLsResource:
+    Type: 'AWS::ApiGateway::Resource'
+    Properties:
+      RestApiId: !Ref 'APIGateway'
+      ParentId: !GetAtt
+        - APIGateway
+        - RootResourceId
+      PathPart: 'presigned'
+    DependsOn:
+      - APIGateway
+
+  LambdaMethod:
+      Type: 'AWS::ApiGateway::Method'
+      Properties:
+        RestApiId: !Ref APIGateway
+        ResourceId: !Ref GetPreSignedURLsResource
+        HttpMethod: POST
+        AuthorizationType: NONE
+        MethodResponses:
+          - StatusCode: 200
+            ResponseModels:
+              application/json: 'Empty'
+        Integration:
+          Type: AWS
+          IntegrationResponses:
+            - StatusCode: 200
+          IntegrationHttpMethod: POST
+          Uri: !Sub
+            - >-
+              arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFuncArn}/invocations
+            - LambdaFuncArn: !Ref LambdaInvokePollyStepFunctionArn
+
+  APIGatewayDeployment:
+    Type: AWS::ApiGateway::Deployment
+    Properties:
+      RestApiId: !Ref APIGateway
+      StageName: prod
+    DependsOn:
+      - LambdaMethod
+
+  APIGatewayLambdaInvokePermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Ref LambdaInvokePollyStepFunctionArn
+      Principal: apigateway.amazonaws.com
+    DependsOn:
+      - APIGatewayDeployment

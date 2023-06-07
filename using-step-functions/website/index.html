@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.14.0/css/all.min.css"
+        integrity="sha512-1PKOgIY59xJ8Co8+NE6FZ+LOAZKjy+KY8iq0G4B3CyeY6wYHN3yt9PW0XpSriVlkMXe40PTKnXrLnZ9+fkDaog=="
+        crossorigin="anonymous" />
+    <link rel="stylesheet" href="style.css">
+    <!-- remove unable to load favicon -->
+    <link rel="shortcut icon" href="#">
+    <title>Home</title>
+</head>
+
+<body>
+    <div class="pad25">
+        <h2><p>Highlight text as it is spoken, using Amazon Polly</p></h2>
+    </div>
+        
+    <div id="postTextDiv" class="pad25">
+        <h4>Enter your text below</h4>
+        <textarea id ="postText" class="left" maxlength=1000 required></textarea>
+        <button type="button" class="btn left" id="postBlogSubmitButton">Speak it, using Polly</button>
+    </div>
+    <br>     
+    <div class="pad25" id="audio"></div>
+    <div class="pad25" id="playStatus"></div>
+    <div class="pad25" id="blog-success"></div>
+    <span class="pad25" id="blogSaveStatus"></span>                
+
+    <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.6.0/jquery.min.js"></script>
+    <script src="./js/postblog.js" defer></script>
+    <script type="text/javascript">
+    </script>
+</body>
+</html>

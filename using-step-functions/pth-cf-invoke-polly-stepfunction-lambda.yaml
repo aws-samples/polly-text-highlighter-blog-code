@@ -1,0 +1,94 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Outputs:
+  LambdaFunction:
+    Value: !Ref LambdaInvokePollyStepFunction
+  LambdaFunctionArn:
+    Value: !GetAtt LambdaInvokePollyStepFunction.Arn
+
+Parameters:
+  StepFunctionArn:
+    Type: String
+  PollyT2SLambdaArn:
+    Type: String
+  PollyT2SpeechmarksLambdaArn:
+    Type: String
+    
+Resources:
+  IAMRole:
+      Type: 'AWS::IAM::Role'
+      DeletionPolicy: Delete
+      Properties:
+        RoleName: 'pth-cf-invoke-stepfunction-lambda-role'
+        AssumeRolePolicyDocument:
+          Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - lambda.amazonaws.com
+              Action:
+                - 'sts:AssumeRole'
+        Path: /
+        ManagedPolicyArns:
+          - 'arn:aws:iam::aws:policy/AWSStepFunctionsFullAccess'
+          - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+
+  LambdaInvokePollyStepFunction:
+    Type: 'AWS::Lambda::Function'
+    DeletionPolicy: Delete
+    Properties:
+      Code:
+        ZipFile: |
+          import boto3
+          import time
+          import json
+          import os
+
+          client = boto3.client('stepfunctions')
+
+          def lambda_handler(event, context):
+              text = event['text']
+              prefix = event['prefix']
+              arn = os.environ["STEPFUNCTIONS_ARN"]
+              pollyT2SLambdaArn = os.environ["POLLY_T2S_LAMBDA_ARN"]
+              pollyT2SpeechmarksLambdaArn = os.environ["POLLY_T2SPEECHMARKS_LAMBDA_ARN"]
+              
+              #arn = 'arn:aws:states:us-east-1:923552689701:stateMachine:polly-text-to-speech-and-speechmarks-express'
+              ts = time.time()
+              name='stepfunctions-polly-speechmarks-' + str(ts) 
+              input = {
+                  "text" : text,
+                  "prefix" : prefix,
+                  "pollyT2SLambdaArn" : pollyT2SLambdaArn,
+                  "pollyT2SpeechmarksLambdaArn" : pollyT2SpeechmarksLambdaArn
+              }
+
+              inputStr = json.dumps(input)
+              
+              response = client.start_sync_execution(
+                  stateMachineArn=arn,
+                  name=name,
+                  input=inputStr
+              )
+              
+              outputstr = response["output"]
+              outputjson = { "output" : json.loads(outputstr) }
+              
+              return (outputjson)
+
+      FunctionName: "pth-cf-invoke-polly-stepfunction-lambda"
+      Handler: index.lambda_handler
+      Runtime: python3.10
+      Role: !GetAtt IAMRole.Arn
+      Tags:
+        - "Key": "Project"
+          "Value": "Polly Text Highlighter Blog"
+      Environment:
+        Variables:
+          STEPFUNCTIONS_ARN: !Ref StepFunctionArn
+          POLLY_T2S_LAMBDA_ARN: !Ref PollyT2SLambdaArn
+          POLLY_T2SPEECHMARKS_LAMBDA_ARN: !Ref PollyT2SpeechmarksLambdaArn
+
+    DependsOn:
+      - IAMRole

@@ -1,0 +1,72 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Polly speech and speechmarks Step Functions state machine.
+
+Outputs:
+  StepFunctionArn: 
+    Description: ARN of StepFunction
+    Value: !GetAtt MyStateMachine.Arn
+
+Parameters:
+  BucketName:
+    Type: String
+    Default: 'pth-cf-code'
+
+Resources:
+  IAMRole:
+      Type: 'AWS::IAM::Role'
+      DeletionPolicy: Delete
+      Properties:
+        RoleName: 'pth-stepfunction-role'
+        AssumeRolePolicyDocument:
+          Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - states.amazonaws.com
+              Action:
+                - 'sts:AssumeRole'
+        Path: /
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/service-role/AWSLambdaRole
+
+  MyStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    DeletionPolicy: Delete
+    Properties:
+      StateMachineType: EXPRESS
+      StateMachineName: pth-cf-polly-t2s-speechmarks-express-stepfunction
+      DefinitionS3Location:
+        Bucket: !Ref BucketName
+        Key: polly-t2s-and-speechmarks-express-stepfunction.json
+        
+      RoleArn: !GetAtt IAMRole.Arn
+      Tags:
+        -
+          Key: "Project"
+          Value: "Polly Text Highlighter Blog"
+    DependsOn:
+        - IAMRole
+
+# Custom inline policy to enable logging
+# {
+#     "Version": "2012-10-17",
+#     "Statement": [
+#         {
+#             "Effect": "Allow",
+#             "Action": [
+#                 "logs:CreateLogDelivery",
+#                 "logs:CreateLogStream",
+#                 "logs:GetLogDelivery",
+#                 "logs:UpdateLogDelivery",
+#                 "logs:DeleteLogDelivery",
+#                 "logs:ListLogDeliveries",
+#                 "logs:PutLogEvents",
+#                 "logs:PutResourcePolicy",
+#                 "logs:DescribeResourcePolicies",
+#                 "logs:DescribeLogGroups"
+#             ],
+#             "Resource": "*"
+#         }
+#     ]
+# }

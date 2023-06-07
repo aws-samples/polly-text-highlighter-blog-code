@@ -1,0 +1,175 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Outputs:
+  LambdaFunction:
+    Value: !Ref LambdaInvokePollyConsolidated
+  LambdaFunctionArn:
+    Value: !GetAtt LambdaInvokePollyConsolidated.Arn
+
+Parameters:
+  PollySpeechBucket:
+    Type: String
+    Default: 'pth-speech'
+  SpeechFile:
+    Type: String
+    Default: 'speech.mp3'
+  SpeechmarksFile:
+    Type: String
+    Default: 'speechmarks.txt'
+  ExpiresInSeconds:
+    Type: String
+    Default: "60"
+
+Resources:
+  IAMRole:
+      Type: 'AWS::IAM::Role'
+      DeletionPolicy: Delete
+      Properties:
+        RoleName: 'pth-cf-invoke-polly-consolidated-lambda-role'
+        AssumeRolePolicyDocument:
+          Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - lambda.amazonaws.com
+              Action:
+                - 'sts:AssumeRole'
+        Path: /
+        ManagedPolicyArns:
+          - 'arn:aws:iam::aws:policy/AmazonPollyFullAccess'
+          - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+          - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
+
+  LambdaInvokePollyConsolidated:
+    Type: 'AWS::Lambda::Function'
+    DeletionPolicy: Delete
+    Properties:
+      Code:
+        ZipFile: |
+          const AWS = require('aws-sdk');
+          const fs = require('fs');
+          const Stream = require('stream');
+
+          // Create an instance of the Polly service
+          const polly = new AWS.Polly();
+          const s3 = new AWS.S3();
+
+          var bucket;
+          var text;
+          var expiresInSeconds;
+          var prefix;
+          var speechFile;
+          var speechmarksFile;
+
+          exports.lambda_handler = async(event) => {
+              // Set the desired parameters for synthesis
+              text = event["text"];
+              bucket = process.env.POLLY_SPEECHMARKS_BUCKET;
+              expiresInSeconds = parseInt(process.env.EXPIRES_IN_SECONDS);
+              speechmarksFile = process.env.SPEECHMARKS_FILE;
+              speechFile = process.env.SPEECH_FILE;
+              prefix = new Date().getTime();
+              
+              const p1 = new Promise(doSynthesizeSpeechMarks);
+              const p2 = new Promise(doSynthesizeSpeech);
+
+              var result;
+              
+              await Promise.all([p1, p2])
+              .then((values) => {
+                  //return array of presigned urls
+                  console.log('Values:', values);
+                  result = { "output" : values };
+              })
+              .catch((err) => {
+                  console.log("Error:" + err);
+                  result = err;
+              });
+              
+              console.log("After promise all:", result);
+              return result;
+          };
+
+          async function doSynthesizeSpeech(resolve, reject) {
+            let speechParams = { VoiceId : 'Joanna', OutputFormat : 'mp3', Text : text, Engine : 'neural' };
+            //console.log('Speech Params:' + speechParams);
+
+            // Synthesize speech with Polly
+            polly.synthesizeSpeech(speechParams, (err, data) => {
+              if (err) {
+                console.log(err, err.stack);
+                reject("Sunthesize speech failed!");
+              } else {
+                let url = saveSpeechToS3(data, speechFile);
+                console.log("Synthesize Speech URL:", url);
+                resolve(url);
+              }
+            });
+          }
+
+          async function doSynthesizeSpeechMarks(resolve, reject) {
+            let speechMarksParams = {VoiceId : 'Joanna', OutputFormat : 'json', SpeechMarkTypes : ['word'], Text : text, Engine : 'neural'};   
+            //console.log('Speech Marks Params:' + speechMarksParams);
+
+            // Synthesize speech with Polly
+            polly.synthesizeSpeech(speechMarksParams, (err, data) => {
+              if (err) {
+                console.log(err, err.stack);
+                reject("Synthesize speechmarks failed!");
+              } else {
+                let url = saveSpeechToS3(data, speechmarksFile);
+                console.log("Synthesize Speechmarks URL:", url);
+                resolve(url);
+              }
+            });
+          }
+
+          async function saveSpeechToS3(data, outf) {
+            //Save the audio stream to a file
+            const outputFileName = '/tmp/' + outf;
+            const key = prefix + '/' + outf;
+            const file = fs.createWriteStream(outputFileName);
+
+            var bufferStream = new Stream.PassThrough();
+            // convert AudioStream into a readable stream
+            bufferStream.end(data.AudioStream);
+            // Pipe into Player
+            bufferStream.pipe(file);
+
+            // Upload the file to S3
+            const uploadParams = { Bucket: bucket, Key: key, Body: fs.createReadStream(outputFileName) };
+
+            try {
+              await s3.upload(uploadParams).promise();
+              console.log('File uploaded successfully');
+              
+              //Clean up the temporary file
+              fs.unlinkSync(outputFileName);
+              const presignParams = {Bucket: bucket, Key: key, Expires: expiresInSeconds};
+              let url = s3.getSignedUrl('getObject', presignParams);     
+              console.log('The URL is', url);            
+              return url;
+            }
+            catch(err) {
+              console.log(err, err.stack);
+              throw(err);
+            }
+          }
+          
+      FunctionName: "pth-cf-invoke-polly-consolidated-lambda"
+      Handler: index.lambda_handler
+      Runtime: nodejs16.x
+      Role: !GetAtt IAMRole.Arn
+      Tags:
+        - "Key": "Project"
+          "Value": "Polly Text Highlighter Blog"
+      Environment:
+        Variables:
+          POLLY_SPEECHMARKS_BUCKET: !Ref PollySpeechBucket
+          SPEECH_FILE: !Ref SpeechFile
+          SPEECHMARKS_FILE: !Ref SpeechmarksFile
+          EXPIRES_IN_SECONDS: !Ref ExpiresInSeconds
+
+    DependsOn:
+      - IAMRole

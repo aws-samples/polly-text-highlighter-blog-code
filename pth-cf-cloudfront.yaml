@@ -1,0 +1,72 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Parameters:
+  MyBucket:
+    Type: String
+  MyDomainName:
+    Type: String
+
+Resources:
+
+  CloudfrontOriginAccessIdentity:
+    Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+    Properties:
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: OAI
+
+  WebUIPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref MyBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              CanonicalUser:
+                Fn::GetAtt: [ CloudfrontOriginAccessIdentity , S3CanonicalUserId ]
+            Action: "s3:GetObject"
+            Resource:
+              - !Join
+                - ''
+                - - 'arn:aws:s3:::'
+                  - !Ref MyBucket
+                  - '/*'
+
+  MyDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Origins:
+          - DomainName: !Ref MyDomainName
+            Id: myS3Origin
+            S3OriginConfig:
+              OriginAccessIdentity: !Sub
+              - >-
+                origin-access-identity/cloudfront/${OAI}
+              - OAI: !Ref CloudfrontOriginAccessIdentity
+        Enabled: true
+        Comment: Created by CloudFormation
+        DefaultRootObject: index.html
+        DefaultCacheBehavior:
+          AllowedMethods:
+          - DELETE
+          - GET
+          - HEAD
+          - OPTIONS
+          - PATCH
+          - POST
+          - PUT
+          TargetOriginId: myS3Origin
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: none
+          ViewerProtocolPolicy: allow-all
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
+
+Outputs:
+  DomainName:
+    Value: !GetAtt MyDistribution.DomainName
+

@@ -1,0 +1,113 @@
+const postBlogUrl = "https://c1emqyjlk6.execute-api.us-east-1.amazonaws.com/prod/presigned";
+
+document.getElementById("postBlogSubmitButton").onclick = function() {
+
+	let text = $('#postText').val();
+
+	if (text == "") {
+		return;
+	}
+	
+	//generate a string from date and time in milliseconds
+	//used to create a unique prefix for each post
+	let d = new Date();
+	let t = d.getTime().toString();
+
+	var myHeaders = new Headers();
+	myHeaders.append("Content-Type", "application/json");
+	
+	var raw = JSON.stringify({
+	  "text": text,
+	  "prefix": t
+	});
+	
+	var requestOptions = {
+	  method: 'POST',
+	  headers: myHeaders,
+	  body: raw,
+	  redirect: 'follow'
+	};
+	
+	fetch(postBlogUrl, requestOptions)
+	  .then(response => response.json())
+	  .then(result => {
+		speechUrl = result["output"][0];
+		console.log(speechUrl);
+		speechmarksUrl = result["output"][1];
+		console.log(speechmarksUrl);
+		doSpeech(speechUrl, speechmarksUrl);
+	  })
+	  .catch(error => console.log('error', error.message));
+}
+
+function doSpeech(speechUrl, speechmarksUrl) {
+	//play the audio from url
+
+	let playStatus = document.getElementById('playStatus');
+	playStatus.textContent = "Fetching audio...";
+	playStatus.style.display = "block";
+
+	let divAudio 		= document.getElementById("audio");
+	let createA 		= document.createElement('audio');
+	createA.id       	= 'audio-player';
+	createA.controls 	= 'controls';
+	createA.autoplay	= true;
+	createA.setAttribute('controlsList', 'nodownload');
+	createA.setAttribute('oncontextmenu', 'return false;');
+	createA.addEventListener('ended', (event) => {
+		createA.remove();
+	});
+
+	createA.addEventListener('play', () => {
+		//fetch speechmarks to sync with the pressing of play button
+		getSpeechmarks(speechmarksUrl);
+	});
+
+	createA.src      	= speechUrl;
+	createA.type     	= 'audio/mpeg';
+	//createA.classList.add("image-center");
+	divAudio.appendChild(createA);
+	playStatus.style.display = "none";	
+}
+
+function getSpeechmarks(speechmarksUrl) {
+	let myHeaders = new Headers();
+	myHeaders.append("Accept", "text/plain");
+	myHeaders.append("Content-Type", "text/plain");
+
+	let requestOptions = {
+		method: 'GET',
+		//headers: myHeaders,
+		redirect: 'follow'
+		};
+		
+	fetch(speechmarksUrl, requestOptions)
+		.then(response => response.text())
+		.then(result => setTimers(result))
+		.catch(error => console.log('error', error));	
+}
+
+function highlighter(start, finish, word) {
+	let textarea = document.getElementById("postText");
+	//console.log(start + "," + finish + "," + word);
+	textarea.focus();
+	textarea.setSelectionRange(start, finish);
+}
+
+function setTimers(speechmarksstr) {
+    //read through the speechmarks file and set timers for every word
+	//console.log(speechmarksstr);
+	let speechmarks = speechmarksstr.split("\n");
+    for (let i = 0; i < speechmarks.length; i++) {
+		//console.log(i + ":" + speechmarks[i]);
+		if (speechmarks[i].length == 0) {
+			continue;
+		}
+		smjson = JSON.parse(speechmarks[i]);
+		t = smjson["time"];
+		s = smjson["start"];
+		f = smjson["end"];
+		word = smjson["value"];
+        setTimeout(highlighter, t, s, f, word);
+    }
+}

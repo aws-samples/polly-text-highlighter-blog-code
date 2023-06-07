@@ -1,0 +1,88 @@
+* {
+    margin: 0px;
+    padding: 0px;
+    box-sizing: border-box;
+  }
+  
+  div > *{
+    float: left;
+    clear: both;
+ }
+
+  body {
+    font-family: "Poppins", sans-serif;
+    background-image: linear-gradient(90deg, #a6ccf5, #a6ccf5);
+  }
+   
+
+/* VIEW, POST BLOGS ************************************************/
+  .blog-center{
+    min-width: 375px;
+    min-height: 150px;
+    width: 75%;
+    background-color: midnightblue;
+    color: rgb(226, 226, 226);
+    position: absolute;
+    top:12%;
+    /*bottom: 3%;*/
+    left: 0;
+    right: 0;
+    margin: auto;
+    border-radius: 10px;
+  }
+
+  .div-center {
+    text-align: center;
+    justify-content: center;
+  }
+
+  textarea {
+    width:		90%;
+    height: 	15em;
+  }
+  
+  .blog-content {
+    width: 97% ;
+    margin-left: auto;
+    margin-right: auto;
+    margin-bottom: 5px;
+    font-family:verdana, sans-serif;
+    word-spacing:4pt;
+    font-size:14px;
+  }
+
+  .pad25{
+    padding:  25px; 
+  }
+
+  .blog-success{
+    color: lightgreen;    
+  }
+
+  .blog-failure{
+    color: darkred;    
+  }
+
+  .vflex{
+    display: flex;
+    flex-direction:column;
+    justify-items: center;
+  }
+  
+  .btn {
+    text-align: center;
+    margin: 1px;
+    padding: 3px;
+    color: white;
+    background-color:#04AA6D;
+    border-radius: 5px;
+    border-color:#04AA6D;
+  }
+
+  .left {
+    float: left;
+  }
+
+  .right{
+    align-self: flex-end;
+  } 

@@ -1,0 +1,25 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Outputs:
+  S3Bucket:
+    Value: !Ref S3Bucket
+  DomainName:
+    Value: !GetAtt
+      - S3Bucket
+      - DomainName
+    Description: Website for text highlighter
+
+Parameters:
+  Suffix:
+    Type: String
+    Description: A unique suffix for your S3 buckets
+
+Resources:
+  S3Bucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: !Join 
+        - ''
+        - - 'pth-cf-text-highlighter-website-'
+          - !Ref Suffix
+      WebsiteConfiguration:
+        IndexDocument: index.html

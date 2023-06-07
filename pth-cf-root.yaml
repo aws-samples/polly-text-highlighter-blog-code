@@ -1,0 +1,56 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Parameters:
+  SpeechFile:
+    Type: String
+    Description: Polly audio file
+    Default: speech.mp3
+  SpeechmarksFile:
+    Type: String
+    Description: Polly speechmarks file
+    Default: speechmarks.txt
+  Suffix:
+    Type: String
+    Description: Unique suffix for s3 bucket
+  
+Resources:
+
+  SpeechBucket:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: pth-speech-bucket.yaml
+      Parameters:
+        Suffix: !Ref Suffix
+
+  PollyConsolidatedLambda:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: pth-cf-invoke-polly-consolidated-lambda.yaml
+      Parameters:
+        PollySpeechBucket: !GetAtt SpeechBucket.Outputs.S3Bucket
+        SpeechFile: !Ref SpeechFile
+        SpeechmarksFile: !Ref SpeechmarksFile
+
+  APIGateway:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: pth-cf-api.yaml
+      Parameters: 
+        LambdaInvokePollyStepFunctionArn: !GetAtt PollyConsolidatedLambda.Outputs.LambdaFunctionArn
+    DependsOn: PollyConsolidatedLambda 
+  
+  StaticWebsite:
+      Type: AWS::CloudFormation::Stack
+      Properties:
+        TemplateURL: pth-static-website.yaml
+        Parameters:
+          Suffix: !Ref Suffix
+
+  CloudFrontDistribution:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: pth-cf-cloudfront.yaml
+      Parameters:
+        MyBucket: !GetAtt StaticWebsite.Outputs.S3Bucket
+        MyDomainName: !GetAtt StaticWebsite.Outputs.DomainName
+    DependsOn: StaticWebsite
+

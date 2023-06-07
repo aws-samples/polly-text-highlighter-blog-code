@@ -1,0 +1,50 @@
+import boto3
+import os
+from botocore import client
+
+polly_client = boto3.client('polly', config=client.Config(signature_version='s3v4'))
+s3_client = boto3.client('s3', config=client.Config(signature_version='s3v4'))
+
+def lambda_handler(event, context):
+    bucket = os.environ["POLLY_SPEECHMARKS_BUCKET"]
+    key = os.environ["SPEECHMARKS_FILE"]
+    expires_in_seconds = os.environ["EXPIRES_IN_SECONDS"]
+    tmpfile = "/tmp/speechmarks.txt"
+    
+    text = event['text']
+    # prefix = event['prefix']
+    
+    # response_speechmarks = polly_client.synthesize_speech(VoiceId='Joanna',
+    #                 OutputFormat='json',
+    #                 SpeechMarkTypes=['word'],
+    #                 Text = text,
+    #                 Engine = 'neural')
+    # print("Response for text to speechmarks:{}".format(response_speechmarks))
+                    
+    # file1 = open(tmpfile, 'wb')
+    # file1.write(response_speechmarks['AudioStream'].read())
+    # file1.close()
+
+    # s3FileName = prefix + "/" + key
+    
+    # s3_client.upload_file(tmpfile, bucket, s3FileName)
+    # return get_presigned_url(bucket, s3FileName, expires_in_seconds)
+    presigned_url = polly_client.generate_presigned_url(
+        ClientMethod='synthesize_speech', 
+        Params={"VoiceId": 'Joanna', "OutputFormat" : 'json', "SpeechMarkTypes" : ['word'], "Text" : text, "Engine" : 'neural'}, 
+        ExpiresIn=expires_in_seconds, 
+        HttpMethod='GET'
+        )
+    print("Presigned URL: {}".format(presigned_url))
+    return presigned_url    
+
+# def get_presigned_url(bucket, key, expires_in_seconds):
+#     url = s3_client.generate_presigned_url(
+#         ClientMethod='get_object',
+#         Params={
+#             'Bucket': bucket,
+#             'Key': key
+#         },
+#         ExpiresIn=expires_in_seconds # seconds
+#     )
+#     return url

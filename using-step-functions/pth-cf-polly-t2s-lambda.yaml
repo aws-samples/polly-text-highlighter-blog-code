@@ -1,0 +1,102 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Outputs:
+  LambdaFunction:
+    Value: !Ref LambdaPollyT2S
+  LambdaFunctionArn:
+    Value: !GetAtt LambdaPollyT2S.Arn
+
+Parameters:
+  PollySpeechBucket:
+    Type: String
+    Default: 'pth-speech'
+  SpeechFile:
+    Type: String
+    Default: 'speech.mp3'
+  ExpiresInSeconds:
+    Type: String
+    Default: "60"
+
+Resources:
+  IAMRole:
+      Type: 'AWS::IAM::Role'
+      DeletionPolicy: Delete
+      Properties:
+        RoleName: 'pth-cf-polly-speech-lambda-role'
+        AssumeRolePolicyDocument:
+          Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - lambda.amazonaws.com
+              Action:
+                - 'sts:AssumeRole'
+        Path: /
+        ManagedPolicyArns:
+          - 'arn:aws:iam::aws:policy/AmazonPollyFullAccess'
+          - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+          - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
+
+  LambdaPollyT2S:
+    Type: 'AWS::Lambda::Function'
+    DeletionPolicy: Delete
+    Properties:
+      Code:
+        ZipFile: |
+          import boto3
+          import os
+          from botocore import client
+
+          polly_client = boto3.Session(region_name='us-east-1').client('polly')
+          s3_client = boto3.client('s3', config=client.Config(signature_version='s3v4'))
+
+          def lambda_handler(event, context):
+              bucket = os.environ["POLLY_SPEECHMARKS_BUCKET"]
+              key = os.environ["SPEECH_FILE"]
+              expires_in_seconds = os.environ["EXPIRES_IN_SECONDS"]
+              tmpfile = "/tmp/speech.mp3"
+              
+              text = event['text']
+              prefix = event['prefix']
+              
+              response_speech = polly_client.synthesize_speech(VoiceId='Joanna',
+                              OutputFormat='mp3', 
+                              Text = text,
+                              Engine = 'neural')
+              print("Response for text to speech:{}".format(response_speech))
+                              
+              file1 = open(tmpfile, 'wb')
+              file1.write(response_speech['AudioStream'].read())
+              file1.close()
+
+              s3FileName = prefix + "/" + key
+              
+              s3_client.upload_file(tmpfile, bucket, s3FileName)
+              return get_presigned_url(bucket, s3FileName, expires_in_seconds)
+
+          def get_presigned_url(bucket, key, expires_in_seconds):
+              url = s3_client.generate_presigned_url(
+                  ClientMethod='get_object',
+                  Params={
+                      'Bucket': bucket,
+                      'Key': key
+                  },
+                  ExpiresIn=expires_in_seconds # seconds
+              )
+              return url
+
+      FunctionName: "pth-cf-polly-t2s-lambda"
+      Handler: index.lambda_handler
+      Runtime: python3.10
+      Role: !GetAtt IAMRole.Arn
+      Tags:
+        - "Key": "Project"
+          "Value": "Polly Text Highlighter Blog"
+      Environment:
+        Variables:
+          POLLY_SPEECHMARKS_BUCKET: !Ref PollySpeechBucket
+          SPEECH_FILE: !Ref SpeechFile
+          EXPIRES_IN_SECONDS: !Ref ExpiresInSeconds
+    DependsOn:
+      - IAMRole
