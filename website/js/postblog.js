@@ -1,4 +1,4 @@
-const postBlogUrl = "https://sl9hw1cqw3.execute-api.us-east-1.amazonaws.com/prod/presigned";
+const postBlogUrl = "YOUR API ENDPOINT ENDING IN /presigned";
 
 document.getElementById("postBlogSubmitButton").onclick = function() {
 

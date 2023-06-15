@@ -129,7 +129,7 @@ If the demo does not work, check the following:
 ## Security
 See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.
 
-## License - to be updated
-This library is licensed under the MIT-0 License. See the LICENSE file.
+## License
+This library is licensed under the [MIT-0 License](https://opensource.org/license/mit-0/).
 
 
